@@ -7,8 +7,7 @@
 // 막는 것은 키가 아니라 DB의 RLS 정책(auth.uid() = user_id)이다.
 // 반대로 Claude API 키는 절대 여기 적지 않는다. 그건 Edge Function 환경변수에만 있다.
 
-const SUPABASE_URL = "https://hwihutjovqonuvajfhar.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh3aWh1dGpvdnFvbnV2YWpmaGFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4MzIyMTQsImV4cCI6MjEwNDQwODIxNH0.r_KZVs59dqa7le8jqgJ5aTqbGoiLjKQsQo4S-FsmzHA"; // ← Supabase → Settings → API
+// 접속 정보는 config.js 에 있다 (index.html 이 먼저 불러온다)
 
 // CDN이 만들어 준 전역 supabase 로 클라이언트를 만든다
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -26,10 +25,35 @@ const historyMsg = $("history-msg");
 const historyList = $("history");
 const result = $("result");
 
+// 위쪽 결과 칸에 지금 띄워 둔 줄의 id.
+// 이력 목록에서 이것만 빼면 같은 게 화면에 두 번 안 나온다.
+// 삭제·재조회 때도 유지돼야 하므로 변수로 둔다.
+let shownResultId = null;
+
 // 안내 문구를 한 곳에서 처리한다
 function say(el, text, isError = false) {
   el.textContent = text;
   el.classList.toggle("error", isError);
+}
+
+// 결과 칸과 입력칸을 완전히 비운다.
+// hidden 으로 숨기기만 하면 안의 글이 남아 있어서, 어떤 경로로든
+// 다시 보이게 되는 순간 옛 내용이 그대로 나온다. 내용까지 지운다.
+function clearResult() {
+  result.hidden = true;
+  $("result-img").removeAttribute("src");
+  $("result-img").alt = "";
+  $("result-card").textContent = "";
+  $("result-question").textContent = "";
+  $("result-text").textContent = "";
+  shownResultId = null;
+}
+
+function clearAuthForm() {
+  $("email").value = "";
+  $("password").value = "";
+  $("btn-resend").hidden = true;
+  say(authMsg, "");
 }
 
 // 카드 이름 → 이미지 경로. "Ace of Wands" → assets/cards/ace_of_wands.jpg
@@ -51,6 +75,9 @@ async function render(session) {
   screenAuth.hidden = loggedIn;
   screenApp.hidden = !loggedIn;
 
+  // 여기서 결과 칸을 비우면 안 된다.
+  // 탭을 떠났다 돌아올 때도 이 함수가 다시 불려서, 보고 있던 해석이 지워진다.
+  // 비우는 것은 로그아웃할 때만 한다.
   if (loggedIn) {
     $("who").textContent = session.user.email;
     await loadHistory();
@@ -72,7 +99,9 @@ $("btn-signup").addEventListener("click", async () => {
   const { data, error } = await sb.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: window.location.href.split("#")[0] },
+    // 확인 링크는 전용 페이지로 돌려보낸다. 거기서 확인만 마치고,
+    // 로그인은 사용자가 첫 화면에서 직접 한다.
+    options: { emailRedirectTo: new URL("confirm.html", window.location.href).href },
   });
   if (error) return say(authMsg, "가입 실패: " + error.message, true);
 
@@ -101,7 +130,7 @@ $("btn-resend").addEventListener("click", async () => {
   const { error } = await sb.auth.resend({
     type: "signup",
     email,
-    options: { emailRedirectTo: window.location.href.split("#")[0] },
+    options: { emailRedirectTo: new URL("confirm.html", window.location.href).href },
   });
 
   btn.disabled = false;
@@ -142,30 +171,23 @@ authForm.addEventListener("submit", async (e) => {
 
 $("btn-logout").addEventListener("click", async () => {
   await sb.auth.signOut();
-  result.hidden = true;
+  clearResult();
+  clearAuthForm();
   historyList.replaceChildren();
   say(drawMsg, "");
+  say(historyMsg, "");
 });
 
 // 로그인·로그아웃·새로고침 전부 이 한 곳으로 들어온다.
-//
-// 확인 링크를 누르면 Supabase가 이 주소로 돌려보내면서 주소 끝에 토큰을 붙여 준다.
-// 라이브러리가 그걸 읽어 로그인 처리를 하고 SIGNED_IN 을 알려준다.
-// 그때는 사용자가 로그인 버튼을 누른 게 아니므로, 확인이 끝났다고 알려줘야 한다.
-const cameFromEmailLink = window.location.hash.includes("access_token");
+// 확인 링크는 이 페이지로 오지 않는다 (confirm.html 이 받는다).
 
 sb.auth.onAuthStateChange((event, session) => {
-  render(session);
-  if (event === "SIGNED_IN" && cameFromEmailLink) {
-    say(drawMsg, "이메일 확인이 끝났습니다. 이제 카드를 뽑을 수 있습니다.");
-    // 주소창에 남은 토큰을 지운다. 그대로 두면 새로고침·공유 때 같이 따라간다.
-    history.replaceState(null, "", window.location.pathname);
-  }
-});
+  // 토큰 자동 갱신 때도 이 콜백이 불린다. 그때 다시 그리면
+  // 보고 있던 해석이 지워지므로 건너뛴다. 로그인 상태는 그대로다.
+  if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
 
-// 확인 링크로 들어온 경우 주소에 오류가 실려 올 수도 있다 (링크 만료 등)
-const hashError = new URLSearchParams(window.location.hash.slice(1)).get("error_description");
-if (hashError) say(authMsg, "확인 링크 오류: " + hashError, true);
+  render(session);
+});
 
 sb.auth.getSession().then(({ data }) => render(data.session));
 
@@ -179,7 +201,7 @@ drawForm.addEventListener("submit", async (e) => {
 
   btn.disabled = true;
   result.hidden = true;
-  say(drawMsg, `${card} — 해석을 받아오는 중...`);
+  say(drawMsg, `${card} — 해석을 받아오는 중입니다. (15~20초 정도 소요됩니다.)`);
 
   try {
     // 1) Edge Function 에 해석 요청. Claude 키는 저쪽에만 있다.
@@ -193,12 +215,18 @@ drawForm.addEventListener("submit", async (e) => {
 
     // 2) 해석까지 받은 뒤 한 번만 INSERT 한다. user_id 는 RLS 통과용.
     const { data: session } = await sb.auth.getSession();
-    const { error: insErr } = await sb.from("readings").insert({
-      user_id: session.session.user.id,
-      question: question || null,
-      cards: [card],              // 1장이지만 배열로 저장한다
-      interpretation,
-    });
+    // select().single() 을 붙여 방금 만든 줄의 id 를 돌려받는다.
+    // 위에 결과를 띄우므로, 아래 "지난 기록" 에서는 이 id 를 빼야 같은 게 두 번 안 보인다.
+    const { data: inserted, error: insErr } = await sb
+      .from("readings")
+      .insert({
+        user_id: session.session.user.id,
+        question: question || null,
+        cards: [card],              // 1장이지만 배열로 저장한다
+        interpretation,
+      })
+      .select("id")
+      .single();
     if (insErr) throw new Error("저장 실패: " + insErr.message);
 
     // 3) 화면에 보여준다
@@ -211,6 +239,7 @@ drawForm.addEventListener("submit", async (e) => {
 
     say(drawMsg, "");
     $("question").value = "";
+    shownResultId = inserted.id;      // 방금 뽑은 것은 위에 있으니 목록에서 뺀다
     await loadHistory();
   } catch (err) {
     say(drawMsg, err.message, true);
@@ -221,7 +250,10 @@ drawForm.addEventListener("submit", async (e) => {
 
 // ---------- 이력 읽기 ----------
 // RLS 가 걸려 있으므로 조건을 안 써도 내 것만 온다.
-async function loadHistory() {
+//
+// excludeId — 방금 뽑아 위쪽에 띄운 줄. "지난 기록" 이라는 제목대로
+// 지난 것만 보이게 하려고 그 하나만 목록에서 뺀다.
+async function loadHistory(excludeId = shownResultId) {
   say(historyMsg, "불러오는 중...");
 
   const { data, error } = await sb
@@ -231,14 +263,18 @@ async function loadHistory() {
 
   if (error) return say(historyMsg, "이력을 불러오지 못했습니다: " + error.message, true);
 
+  const rows = data.filter((r) => r.id !== excludeId);
+
   historyList.replaceChildren();
 
-  if (!data.length) {
-    return say(historyMsg, "아직 기록이 없습니다. 카드를 뽑아 보세요.");
+  if (!rows.length) {
+    return say(historyMsg,
+      excludeId ? "지난 기록은 아직 없습니다." : "아직 기록이 없습니다. 카드를 뽑아 보세요."
+    );
   }
-  say(historyMsg, `${data.length}개`);
+  say(historyMsg, `${rows.length}개`);
 
-  for (const row of data) {
+  for (const row of rows) {
     historyList.appendChild(historyItem(row));
   }
 }

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>이메일 확인 — Kate's Taro Shop</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<h1 class="brand">Kate&rsquo;s Taro Shop</h1>
+
+<!-- 확인 링크가 돌아오는 전용 페이지.
+     여기서 확인만 마치고, 로그인은 사용자가 직접 하도록 되돌려 보낸다. -->
+<section class="card confirm">
+  <h2 id="title">확인 중입니다...</h2>
+  <p id="detail" class="msg"></p>
+  <a id="go" class="button-link" href="index.html" hidden>로그인하기</a>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="confirm.js"></script>
+
+</body>
+</html>
