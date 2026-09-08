@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kate's Taro Shop</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<h1 class="brand">Kate&rsquo;s Taro Shop</h1>
+
+<!-- ===== 화면 1: 로그인 ===== -->
+<!-- 로그인 전에는 이 화면만 보인다. 나머지는 hidden 이다. -->
+<section id="screen-auth" class="screen">
+  <p class="lead">오늘의 카드 한 장을 뽑고, 해석을 남겨 둡니다.</p>
+
+  <form id="auth-form" class="card">
+    <label for="email">이메일</label>
+    <input id="email" type="email" autocomplete="email" required>
+
+    <label for="password">비밀번호</label>
+    <input id="password" type="password" autocomplete="current-password"
+           minlength="6" required>
+
+    <div class="row">
+      <button type="submit" id="btn-login">로그인</button>
+      <button type="button" id="btn-signup" class="ghost">회원가입</button>
+    </div>
+  </form>
+
+  <p id="auth-msg" class="msg" role="status"></p>
+
+  <!-- 확인 메일을 못 받았거나 놓친 사람을 위한 버튼. 평소에는 숨겨 둔다. -->
+  <button type="button" id="btn-resend" class="ghost small" hidden>
+    확인 메일 다시 보내기
+  </button>
+</section>
+
+<!-- ===== 화면 2: 카드 뽑기 + 이력 ===== -->
+<section id="screen-app" class="screen" hidden>
+  <div class="topbar">
+    <span id="who"></span>
+    <button type="button" id="btn-logout" class="ghost small">로그아웃</button>
+  </div>
+
+  <form id="draw-form" class="card">
+    <label for="question">묻고 싶은 것 (비워 두면 오늘 전반에 대한 조언)</label>
+    <input id="question" type="text" maxlength="300"
+           placeholder="예: 지금 하는 일을 계속해도 될까요?">
+    <button type="submit" id="btn-draw">카드 뽑기</button>
+  </form>
+
+  <p id="draw-msg" class="msg" role="status"></p>
+
+  <!-- 방금 뽑은 결과 -->
+  <article id="result" class="card result" hidden>
+    <img id="result-img" alt="">
+    <div>
+      <h2 id="result-card"></h2>
+      <p id="result-question" class="question"></p>
+      <p id="result-text"></p>
+    </div>
+  </article>
+
+  <!-- 지난 이력. 새로고침해도 여기 남는 것이 이 앱의 핵심이다. -->
+  <h2 class="section-title">지난 기록</h2>
+  <p id="history-msg" class="msg" role="status"></p>
+  <ul id="history" class="history"></ul>
+</section>
+
+<!-- Supabase JS 라이브러리 (CDN). 전역 이름 supabase 가 생긴다 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="cards.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>

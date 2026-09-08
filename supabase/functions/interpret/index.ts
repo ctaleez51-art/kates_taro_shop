@@ -12,7 +12,9 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 // 브라우저가 다른 주소(GitHub Pages)에서 이 함수를 부르므로 CORS 허용이 필요하다
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type, apikey",
+  // Supabase JS가 자동으로 붙이는 x-client-info 를 빠뜨리면
+  // 브라우저가 preflight 단계에서 요청을 막는다 (함수에 도달조차 못 한다)
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
